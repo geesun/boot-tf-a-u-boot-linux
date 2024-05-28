@@ -1,0 +1,13 @@
+
+add-symbol-file "src/tf-a/build/fvp/debug/bl1/bl1.elf" EL3:0
+add-symbol-file "src/tf-a/build/fvp/debug/bl2/bl2.elf" EL1S:0
+add-symbol-file "src/tf-a/build/fvp/debug/bl31/bl31.elf" EL3:0
+
+add-symbol-file "src/linux/vmlinux" EL2N:0x800000200000
+add-symbol-file "src/linux/vmlinux" EL1N:0x800000200000
+add-symbol-file "src/linux/vmlinux" EL1N:0
+add-symbol-file "src/linux/vmlinux" EL2N:0
+
+break bl31_main
+break primary_entry
+c 
