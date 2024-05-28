@@ -1,0 +1,96 @@
+SRC_DIR 		:= $(shell pwd)/src
+TOOLS_DIR 		:= $(shell pwd)/tools
+CROSS_COMPILE 	:= $(TOOLS_DIR)/arm-gnu-toolchain-13.2.Rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
+CC 				:= $(CROSS_COMPILE)gcc
+LD 				:= $(CROSS_COMPILE)ld
+FVP_BASE 	    := $(TOOLS_DIR)/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/FVP_Base_RevC-2xAEMvA
+GRUB_BUSYBOX_IMG := $(shell pwd)/rootfs/grub-busybox.img
+
+UBOOT_CONFIG 	:= vexpress_aemv8a_semi_config 
+BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug user_debug=31 loglevel=9\""
+BOOTCMD			:= "CONFIG_BOOTCOMMAND=\"booti 0x80080000 - 0x83000000\""
+
+FVP_OPTIONS 	:= \
+	-C cluster0.NUM_CORES=4 -C cluster1.NUM_CORES=4 \
+	-C cluster0.has_arm_v8-3=1 -C cluster1.has_arm_v8-3=1 \
+	-C cluster0.has_arm_v8-5=1 -C cluster1.has_arm_v8-5=1 \
+	-C cluster0.has_branch_target_exception=1 -C cluster1.has_branch_target_exception=1 \
+	-C cache_state_modelled=0 \
+	-C pctl.startup=0.0.0.0 \
+	-C bp.secure_memory=1   \
+	-C bp.ve_sysregs.exit_on_shutdown=1 \
+	-C bp.secureflashloader.fname=$(SRC_DIR)/tf-a/build/fvp/debug/bl1.bin \
+	-C bp.flashloader0.fname=$(SRC_DIR)/tf-a/build/fvp/debug/fip.bin \
+	--data cluster0.cpu0=$(SRC_DIR)/linux/arch/arm64/boot/Image@0x80080000  \
+	--data cluster0.cpu0=$(SRC_DIR)/linux/arch/arm64/boot/dts/arm/fvp-base-revc.dtb@0x83000000  \
+	-C bp.ve_sysregs.mmbSiteDefault=0    \
+	-C bp.terminal_3.terminal_command="tmux split-window -d telnet localhost %port" \
+	-C bp.terminal_0.terminal_command="tmux split-window -h telnet localhost %port" \
+	-C bp.virtioblockdevice.image_path=$(GRUB_BUSYBOX_IMG) \
+
+DEBUG_OPTIONS 	:= $(subst ",\",$(FVP_OPTIONS)) -I -p
+
+.PHONY: all clone download u-boot.build tf-a.build linux.build build run debug clean fs
+
+all: clone download config build buildfs
+
+clone:
+	@ mkdir -p $(SRC_DIR)
+	@ [ -d "$(SRC_DIR)/u-boot" ] || git clone https://git.denx.de/u-boot $(SRC_DIR)/u-boot
+	@ [ -d "$(SRC_DIR)/tf-a" ] || git clone https://git.trustedfirmware.org/TF-A/trusted-firmware-a  $(SRC_DIR)/tf-a
+	@ [ -d "$(SRC_DIR)/linux" ] || git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git $(SRC_DIR)/linux
+
+download:
+	@ mkdir -p $(TOOLS_DIR)
+	@ [ -f "$(TOOLS_DIR)/FVP_Base_RevC-2xAEMvA_11.25_15_Linux64.tgz" ] || wget -P $(TOOLS_DIR) https://armkeil.blob.core.windows.net/developer/Files/downloads/ecosystem-models/FM_11_25/FVP_Base_RevC-2xAEMvA_11.25_15_Linux64.tgz
+	@ [ -f "$(TOOLS_DIR)/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz" ] || wget -P $(TOOLS_DIR) https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+	@ [ -d "$(TOOLS_DIR)/Base_RevC_AEMvA_pkg" ] || tar -C $(TOOLS_DIR) -zxvf $(TOOLS_DIR)/FVP_Base_RevC-2xAEMvA_11.25_15_Linux64.tgz
+	@ [ -d "$(TOOLS_DIR)/arm-gnu-toolchain-13.2.Rel1-x86_64-aarch64-none-linux-gnu" ] || tar -C $(TOOLS_DIR) -xvf $(TOOLS_DIR)/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+
+
+u-boot.build:
+	export ARCH=aarch64 ; \
+	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
+	cd $(SRC_DIR)/u-boot ;\
+	echo $(BOOTARGS) > fvp.cfg; \
+	echo $(BOOTCMD) >> fvp.cfg; \
+	make -j 16  $(UBOOT_CONFIG);\
+	scripts/kconfig/merge_config.sh -m -O ./ .config fvp.cfg; \
+	make -j 16  ;
+
+tf-a.build:
+	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
+	cd $(SRC_DIR)/tf-a; \
+	make PLAT=fvp  FVP_HW_CONFIG_DTS=fdts/fvp-base-gicv3-psci-1t.dts DEBUG=1 BL33=$(SRC_DIR)/u-boot/u-boot.bin dtbs all fip V=1
+
+linux.build: 
+	make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j 24 Image CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
+
+build: u-boot.build tf-a.build linux.build buildfs
+
+buildfs:
+	mkdir -p rootfs/tmp -p && cd rootfs/tmp && tar -jxvf ../rootfs.tar.bz2
+	cd rootfs/tmp && ../gen-rootfs
+	rm -rf rootfs/tmp
+
+run:
+	$(FVP_BASE) $(FVP_OPTIONS)
+
+debug:
+	/opt/arm/developmentstudio_platinum-0.a/bin/armdbg \
+		--cdb-entry="Imported::FVP_Base_RevC_2xAEMvA::Bare Metal Debug::Bare Metal Debug::ARM_AEM-A_MPx4 SMP Cluster 0" \
+		--cdb-root ~/developmentstudio-workspace/RevC \
+		-cdb-entry-param model_params="$(DEBUG_OPTIONS)" -s ap.ds --interactive
+
+clean:
+	rm -rf $(GRUB_BUSYBOX_IMG)
+	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
+	make -C $(SRC_DIR)/tf-a 
+	make -C $(SRC_DIR)/u-boot
+
+distclean:
+	rm -rf $(GRUB_BUSYBOX_IMG)
+	rm -rf $(SRC_DIR) $(TOOLS_DIR)
+
+
