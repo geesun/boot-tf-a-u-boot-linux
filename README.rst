@@ -70,7 +70,8 @@ By default, the FVP uses xterm for serial port output. In this Makefile, tmux is
 
 2. Debug FVP with Arm DS  
 
-You need import the Base RevC FVP to the Arm DS before debug. And then type: 
+Before debugging, you need to import the Base RevC FVP into Arm DS. Follow similar steps to `import the RevC FVP into Arm DS<https://community.arm.com/oss-platforms/w/docs/649/guide-to-set-up-debugging-environment-for-total-compute-software-stack>`_. Ensure your configuration database is located at ~/developmentstudio-workspace/RevC and that the model name is FVP_Base_RevC_2xAEMvA to match the debug target in the Makefile.
+And then type: 
 
 .. code-block:: sh 
 
