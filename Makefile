@@ -64,7 +64,7 @@ u-boot.clean:
 tf-a.build:
 	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
 	cd $(SRC_DIR)/tf-a; \
-	make PLAT=fvp  FVP_HW_CONFIG_DTS=fdts/fvp-base-gicv3-psci-1t.dts DEBUG=1 BL33=$(SRC_DIR)/u-boot/u-boot.bin dtbs all fip V=1
+	make PLAT=fvp DEBUG=1 BL33=$(SRC_DIR)/u-boot/u-boot.bin all fip V=1
 
 tf-a.clean: 
 	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
