@@ -28,7 +28,7 @@ Build the rootfs
 
 .. code-block:: sh 
 
-    make  buildfs
+    make  fs.build
 
 
 Run FVP 

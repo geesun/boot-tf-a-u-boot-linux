@@ -30,9 +30,9 @@ FVP_OPTIONS 	:= \
 
 DEBUG_OPTIONS 	:= $(subst ",\",$(FVP_OPTIONS)) -I -p
 
-.PHONY: all clone download u-boot.build tf-a.build linux.build build run debug clean fs
+.PHONY: all clone download u-boot.build u-boot.clean tf-a.build tf-a.clean linux.build linux.clean build run debug clean fs.build fs.clean 
 
-all: clone download config build buildfs
+all: clone download build 
 
 clone:
 	@ mkdir -p $(SRC_DIR)
@@ -58,21 +58,34 @@ u-boot.build:
 	scripts/kconfig/merge_config.sh -m -O ./ .config fvp.cfg; \
 	make -j 16  ;
 
+u-boot.clean:
+	make -C $(SRC_DIR)/u-boot clean 
+
 tf-a.build:
 	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
 	cd $(SRC_DIR)/tf-a; \
 	make PLAT=fvp  FVP_HW_CONFIG_DTS=fdts/fvp-base-gicv3-psci-1t.dts DEBUG=1 BL33=$(SRC_DIR)/u-boot/u-boot.bin dtbs all fip V=1
 
+tf-a.clean: 
+	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
+	make PLAT=fvp -C $(SRC_DIR)/tf-a  realclean
+
 linux.build: 
-	make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
+	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
 	make -C $(SRC_DIR)/linux ARCH=arm64 -j 24 Image CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
 
-build: u-boot.build tf-a.build linux.build buildfs
+linux.clean:
+	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
 
-buildfs:
+fs.build:
 	mkdir -p rootfs/tmp -p && cd rootfs/tmp && tar -jxvf ../rootfs.tar.bz2
 	cd rootfs/tmp && ../gen-rootfs
 	rm -rf rootfs/tmp
+
+fs.clean: 
+	rm -rf $(GRUB_BUSYBOX_IMG)
+		
+build: u-boot.build tf-a.build linux.build fs.build
 
 run:
 	$(FVP_BASE) $(FVP_OPTIONS)
@@ -83,11 +96,7 @@ debug:
 		--cdb-root ~/developmentstudio-workspace/RevC \
 		-cdb-entry-param model_params="$(DEBUG_OPTIONS)" -s ap.ds --interactive
 
-clean:
-	rm -rf $(GRUB_BUSYBOX_IMG)
-	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
-	make -C $(SRC_DIR)/tf-a 
-	make -C $(SRC_DIR)/u-boot
+clean: fs.clean linux.clean tf-a.clean u-boot.clean
 
 distclean:
 	rm -rf $(GRUB_BUSYBOX_IMG)
