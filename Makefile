@@ -7,7 +7,7 @@ FVP_BASE 	    := $(TOOLS_DIR)/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/FVP_Bas
 GRUB_BUSYBOX_IMG := $(shell pwd)/rootfs/grub-busybox.img
 
 UBOOT_CONFIG 	:= vexpress_aemv8a_semi_config 
-BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug user_debug=31 loglevel=9\""
+BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug user_debug=31 loglevel=9  \""
 BOOTCMD			:= "CONFIG_BOOTCOMMAND=\"booti 0x80080000 - 0x83000000\""
 
 FVP_OPTIONS 	:= \
@@ -15,6 +15,8 @@ FVP_OPTIONS 	:= \
 	-C cluster0.has_arm_v8-3=1 -C cluster1.has_arm_v8-3=1 \
 	-C cluster0.has_arm_v8-5=1 -C cluster1.has_arm_v8-5=1 \
 	-C cluster0.has_branch_target_exception=1 -C cluster1.has_branch_target_exception=1 \
+	-C cluster0.memory_tagging_support_level=4   \
+	-C cluster1.memory_tagging_support_level=4   \
 	-C cache_state_modelled=0 \
 	-C pctl.startup=0.0.0.0 \
 	-C bp.secure_memory=1   \
@@ -27,6 +29,17 @@ FVP_OPTIONS 	:= \
 	-C bp.terminal_3.terminal_command="tmux split-window -d telnet localhost %port" \
 	-C bp.terminal_0.terminal_command="tmux split-window -h telnet localhost %port" \
 	-C bp.virtioblockdevice.image_path=$(GRUB_BUSYBOX_IMG) \
+	-C pci.pci_smmuv3.mmu.SMMU_AIDR=2   \
+	-C pci.pci_smmuv3.mmu.SMMU_IDR0=0x0046123B   \
+	-C pci.pci_smmuv3.mmu.SMMU_IDR1=0x00600002   \
+	-C pci.pci_smmuv3.mmu.SMMU_IDR3=0x1714   \
+	-C pci.pci_smmuv3.mmu.SMMU_IDR5=0xFFFF0475   \
+	-C pci.pci_smmuv3.mmu.SMMU_S_IDR1=0xA0000002   \
+	-C pci.pci_smmuv3.mmu.SMMU_S_IDR2=0   \
+	-C pci.pci_smmuv3.mmu.SMMU_S_IDR3=0   \
+	-C pci.pci_smmuv3.mmu.SMMU_ROOT_IDR0=3   \
+	-C pci.pci_smmuv3.mmu.SMMU_ROOT_IIDR=0x43B   \
+	-C pci.pci_smmuv3.mmu.root_register_page_offset=0x20000   \
 
 DEBUG_OPTIONS 	:= $(subst ",\",$(FVP_OPTIONS)) -I -p
 
@@ -61,10 +74,10 @@ u-boot.build:
 u-boot.clean:
 	make -C $(SRC_DIR)/u-boot clean 
 
-tf-a.build:
+tf-a.build: u-boot.build
 	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
 	cd $(SRC_DIR)/tf-a; \
-	make PLAT=fvp DEBUG=1 BL33=$(SRC_DIR)/u-boot/u-boot.bin all fip V=1
+	make PLAT=fvp DEBUG=1 BL33=$(SRC_DIR)/u-boot/u-boot.bin all fip V=1 ENABLE_FEAT_MTE2=1
 
 tf-a.clean: 
 	export CROSS_COMPILE=$(CROSS_COMPILE) ; \
