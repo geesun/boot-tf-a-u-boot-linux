@@ -85,7 +85,8 @@ tf-a.clean:
 
 linux.build: 
 	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j 24 Image CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
+	make -C $(SRC_DIR)/linux ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILE) olddefconfig
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j 24 CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
 
 linux.clean:
 	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
