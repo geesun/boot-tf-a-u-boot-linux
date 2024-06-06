@@ -26,7 +26,6 @@ FVP_OPTIONS 	:= \
 	--data cluster0.cpu0=$(SRC_DIR)/linux/arch/arm64/boot/Image@0x80080000  \
 	--data cluster0.cpu0=$(SRC_DIR)/linux/arch/arm64/boot/dts/arm/fvp-base-revc.dtb@0x83000000  \
 	-C bp.ve_sysregs.mmbSiteDefault=0    \
-	-C bp.terminal_3.terminal_command="tmux split-window -d telnet localhost %port" \
 	-C bp.terminal_0.terminal_command="tmux split-window -h telnet localhost %port" \
 	-C bp.virtioblockdevice.image_path=$(GRUB_BUSYBOX_IMG) \
 	-C pci.pci_smmuv3.mmu.SMMU_AIDR=2   \
@@ -67,9 +66,9 @@ u-boot.build:
 	cd $(SRC_DIR)/u-boot ;\
 	echo $(BOOTARGS) > fvp.cfg; \
 	echo $(BOOTCMD) >> fvp.cfg; \
-	make -j 16  $(UBOOT_CONFIG);\
+	make -j $(nproc)  $(UBOOT_CONFIG);\
 	scripts/kconfig/merge_config.sh -m -O ./ .config fvp.cfg; \
-	make -j 16  ;
+	make -j $(nproc)  ;
 
 u-boot.clean:
 	make -C $(SRC_DIR)/u-boot clean 
@@ -86,7 +85,7 @@ tf-a.clean:
 linux.build: 
 	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
 	make -C $(SRC_DIR)/linux ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILE) olddefconfig
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j 24 CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(nproc) CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
 
 linux.clean:
 	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
