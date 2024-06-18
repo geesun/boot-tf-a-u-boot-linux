@@ -9,6 +9,7 @@ GRUB_BUSYBOX_IMG := $(shell pwd)/rootfs/grub-busybox.img
 UBOOT_CONFIG 	:= vexpress_aemv8a_semi_config 
 BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug user_debug=31 loglevel=9  \""
 BOOTCMD			:= "CONFIG_BOOTCOMMAND=\"booti 0x80080000 - 0x83000000\""
+JOBS 			:= $(shell nproc)
 
 FVP_OPTIONS 	:= \
 	-C cluster0.NUM_CORES=4 -C cluster1.NUM_CORES=4 \
@@ -66,9 +67,9 @@ u-boot.build:
 	cd $(SRC_DIR)/u-boot ;\
 	echo $(BOOTARGS) > fvp.cfg; \
 	echo $(BOOTCMD) >> fvp.cfg; \
-	make -j $(nproc)  $(UBOOT_CONFIG);\
+	make -j $(JOBS)  $(UBOOT_CONFIG);\
 	scripts/kconfig/merge_config.sh -m -O ./ .config fvp.cfg; \
-	make -j $(nproc)  ;
+	make -j $(JOBS)  ;
 
 u-boot.clean:
 	make -C $(SRC_DIR)/u-boot clean 
@@ -85,7 +86,7 @@ tf-a.clean:
 linux.build: 
 	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
 	make -C $(SRC_DIR)/linux ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILE) olddefconfig
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(nproc) CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
 
 linux.clean:
 	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
