@@ -7,7 +7,7 @@ FVP_BASE 	    := $(TOOLS_DIR)/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/FVP_Bas
 GRUB_BUSYBOX_IMG := $(shell pwd)/rootfs/grub-busybox.img
 
 UBOOT_CONFIG 	:= vexpress_aemv8a_semi_config 
-BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug user_debug=31 loglevel=9  \""
+BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug user_debug=31 loglevel=9 \""
 BOOTCMD			:= "CONFIG_BOOTCOMMAND=\"booti 0x80080000 - 0x83000000\""
 JOBS 			:= $(shell nproc)
 
@@ -86,13 +86,19 @@ tf-a.clean:
 linux.build: 
 	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
 	make -C $(SRC_DIR)/linux ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILE) olddefconfig
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs modules
+
+linux.mod:
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) modules
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) INSTALL_MOD_PATH=$(shell pwd)/rootfs/tmp  modules_install
+
 
 linux.clean:
 	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
 
 fs.build:
 	mkdir -p rootfs/tmp -p && cd rootfs/tmp && tar -jxvf ../rootfs.tar.bz2
+	cp rootfs/tmp/lib/* rootfs/tmp/rootfs/lib/ -a
 	cd rootfs/tmp && ../gen-rootfs
 	rm -rf rootfs/tmp
 
