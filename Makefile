@@ -7,7 +7,7 @@ FVP_BASE 	    := $(TOOLS_DIR)/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/FVP_Bas
 GRUB_BUSYBOX_IMG := $(shell pwd)/rootfs/grub-busybox.img
 
 UBOOT_CONFIG 	:= vexpress_aemv8a_semi_config 
-BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug user_debug=31 loglevel=9 \""
+BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug loglevel=9 \""
 BOOTCMD			:= "CONFIG_BOOTCOMMAND=\"booti 0x80080000 - 0x83000000\""
 JOBS 			:= $(shell nproc)
 
@@ -43,7 +43,9 @@ FVP_OPTIONS 	:= \
 
 DEBUG_OPTIONS 	:= $(subst ",\",$(FVP_OPTIONS)) -I -p
 
-.PHONY: all clone download u-boot.build u-boot.clean tf-a.build tf-a.clean linux.build linux.clean build run debug clean fs.build fs.clean  buildroot.build buildroot.clean
+.PHONY: all clone download u-boot.build u-boot.clean tf-a.build tf-a.clean \
+	linux.build linux.clean linux.mod buildroot.build buildroot.clean \
+	buildroot.savecfg  build run debug clean fs.build fs.clean  \
 
 all: clone download build 
 
