@@ -41,7 +41,7 @@ Build all images
     make  u-boot.build 
     make  tf-a.build 
     make  linux.build 
-    make  fs.build 
+    make  buildroot.build
 
 3. Clean u-boot tf-a linux and rootfs in one step or seperate step 
 

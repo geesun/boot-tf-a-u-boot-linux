@@ -43,7 +43,7 @@ FVP_OPTIONS 	:= \
 
 DEBUG_OPTIONS 	:= $(subst ",\",$(FVP_OPTIONS)) -I -p
 
-.PHONY: all clone download u-boot.build u-boot.clean tf-a.build tf-a.clean linux.build linux.clean build run debug clean fs.build fs.clean 
+.PHONY: all clone download u-boot.build u-boot.clean tf-a.build tf-a.clean linux.build linux.clean build run debug clean fs.build fs.clean  buildroot.build buildroot.clean
 
 all: clone download build 
 
@@ -52,6 +52,7 @@ clone:
 	@ [ -d "$(SRC_DIR)/u-boot" ] || git clone https://git.denx.de/u-boot $(SRC_DIR)/u-boot
 	@ [ -d "$(SRC_DIR)/tf-a" ] || git clone https://git.trustedfirmware.org/TF-A/trusted-firmware-a  $(SRC_DIR)/tf-a
 	@ [ -d "$(SRC_DIR)/linux" ] || git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git $(SRC_DIR)/linux
+	@ [ -d "$(SRC_DIR)/buildroot" ] || git clone https://gitlab.com/buildroot.org/buildroot.git $(SRC_DIR)/buildroot
 
 download:
 	@ mkdir -p $(TOOLS_DIR)
@@ -90,22 +91,33 @@ linux.build:
 
 linux.mod:
 	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) modules
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) INSTALL_MOD_PATH=$(shell pwd)/rootfs/tmp  modules_install
-
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) INSTALL_MOD_PATH=$(shell pwd)/rootfs/overlay  modules_install
 
 linux.clean:
 	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
 
+buildroot.build:
+	cp buildroot.cfg $(SRC_DIR)/buildroot/.config
+	make -C $(SRC_DIR)/buildroot oldconfig
+	make -C $(SRC_DIR)/buildroot  -j $(JOBS)
+	mkdir -p rootfs/tmp/rootfs/ -p && cd rootfs/tmp/rootfs && tar -xvf $(SRC_DIR)/buildroot/output/images/rootfs.tar
+	[ -z "$(shell ls -A rootfs/overlay)" ] || cp rootfs/overlay/* rootfs/tmp/rootfs/ -a
+	cd rootfs/tmp && ../gen-rootfs
+	rm -rf rootfs/tmp
+
+buildroot.clean:
+	make -C $(SRC_DIR)/buildroot clean
+
 fs.build:
 	mkdir -p rootfs/tmp -p && cd rootfs/tmp && tar -jxvf ../rootfs.tar.bz2
-	cp rootfs/tmp/lib/* rootfs/tmp/rootfs/lib/ -a
+	[ -z "$(shell ls -A rootfs/overlay)" ] || cp rootfs/overlay/* rootfs/tmp/rootfs/ -a
 	cd rootfs/tmp && ../gen-rootfs
 	rm -rf rootfs/tmp
 
 fs.clean: 
 	rm -rf $(GRUB_BUSYBOX_IMG)
 		
-build: u-boot.build tf-a.build linux.build fs.build
+build: u-boot.build tf-a.build linux.build buildroot.build
 
 run:
 	$(FVP_BASE) $(FVP_OPTIONS)
@@ -116,7 +128,7 @@ debug:
 		--cdb-root ~/developmentstudio-workspace/RevC \
 		-cdb-entry-param model_params="$(DEBUG_OPTIONS)" -s ap.ds --interactive
 
-clean: fs.clean linux.clean tf-a.clean u-boot.clean
+clean: fs.clean linux.clean tf-a.clean u-boot.clean buildroot.clean
 
 distclean:
 	rm -rf $(GRUB_BUSYBOX_IMG)
