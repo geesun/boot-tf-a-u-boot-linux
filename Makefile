@@ -97,8 +97,8 @@ linux.clean:
 	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
 
 buildroot.build:
-	cp buildroot.cfg $(SRC_DIR)/buildroot/.config
-	make -C $(SRC_DIR)/buildroot oldconfig
+	cp buildroot.cfg $(SRC_DIR)/buildroot/configs/arm_aem_fvp_defconfig
+	make -C $(SRC_DIR)/buildroot arm_aem_fvp_defconfig
 	make -C $(SRC_DIR)/buildroot  -j $(JOBS)
 	mkdir -p rootfs/tmp/rootfs/ -p && cd rootfs/tmp/rootfs && tar -xvf $(SRC_DIR)/buildroot/output/images/rootfs.tar
 	[ -z "$(shell ls -A rootfs/overlay)" ] || cp rootfs/overlay/* rootfs/tmp/rootfs/ -a
@@ -107,6 +107,10 @@ buildroot.build:
 
 buildroot.clean:
 	make -C $(SRC_DIR)/buildroot clean
+
+buildroot.savecfg:
+	make -C $(SRC_DIR)/buildroot savedefconfig
+	cp $(SRC_DIR)/buildroot/configs/arm_aem_fvp_defconfig  buildroot.cfg
 
 fs.build:
 	mkdir -p rootfs/tmp -p && cd rootfs/tmp && tar -jxvf ../rootfs.tar.bz2
