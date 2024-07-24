@@ -1,14 +1,17 @@
 SRC_DIR 		:= $(shell pwd)/src
 TOOLS_DIR 		:= $(shell pwd)/tools
+
 CROSS_COMPILE 	:= $(TOOLS_DIR)/arm-gnu-toolchain-13.2.Rel1-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
-CC 				:= $(CROSS_COMPILE)gcc
+#CC 				:= CC=$(TOOLS_DIR)/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04/bin/clang
+CC 				:= CC=$(CROSS_COMPILE)gcc
+
 LD 				:= $(CROSS_COMPILE)ld
 FVP_BASE 	    := $(TOOLS_DIR)/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/FVP_Base_RevC-2xAEMvA
 GRUB_BUSYBOX_IMG := $(shell pwd)/rootfs/grub-busybox.img
 
 UBOOT_CONFIG 	:= vexpress_aemv8a_semi_config 
 BOOTARGS		:= "CONFIG_BOOTARGS=\"console=ttyAMA0 earlycon=pl011,0x1c090000 root=/dev/vda1 rw ip=dhcp debug loglevel=9 \""
-BOOTCMD			:= "CONFIG_BOOTCOMMAND=\"booti 0x80080000 - 0x83000000\""
+BOOTCMD			:= "CONFIG_BOOTCOMMAND=\"booti 0x80080000 - 0x80070000\""
 JOBS 			:= $(shell nproc)
 
 FVP_OPTIONS 	:= \
@@ -18,6 +21,7 @@ FVP_OPTIONS 	:= \
 	-C cluster0.has_branch_target_exception=1 -C cluster1.has_branch_target_exception=1 \
 	-C cluster0.memory_tagging_support_level=4   \
 	-C cluster1.memory_tagging_support_level=4   \
+	-C bp.dram_metadata.is_enabled=1 \
 	-C cache_state_modelled=0 \
 	-C pctl.startup=0.0.0.0 \
 	-C bp.secure_memory=1   \
@@ -25,7 +29,7 @@ FVP_OPTIONS 	:= \
 	-C bp.secureflashloader.fname=$(SRC_DIR)/tf-a/build/fvp/debug/bl1.bin \
 	-C bp.flashloader0.fname=$(SRC_DIR)/tf-a/build/fvp/debug/fip.bin \
 	--data cluster0.cpu0=$(SRC_DIR)/linux/arch/arm64/boot/Image@0x80080000  \
-	--data cluster0.cpu0=$(SRC_DIR)/linux/arch/arm64/boot/dts/arm/fvp-base-revc.dtb@0x83000000  \
+	--data cluster0.cpu0=$(SRC_DIR)/linux/arch/arm64/boot/dts/arm/fvp-base-revc.dtb@0x80070000  \
 	-C bp.ve_sysregs.mmbSiteDefault=0    \
 	-C bp.terminal_0.terminal_command="tmux split-window -h telnet localhost %port" \
 	-C bp.virtioblockdevice.image_path=$(GRUB_BUSYBOX_IMG) \
@@ -60,8 +64,10 @@ download:
 	@ mkdir -p $(TOOLS_DIR)
 	@ [ -f "$(TOOLS_DIR)/FVP_Base_RevC-2xAEMvA_11.25_15_Linux64.tgz" ] || wget -P $(TOOLS_DIR) https://armkeil.blob.core.windows.net/developer/Files/downloads/ecosystem-models/FM_11_25/FVP_Base_RevC-2xAEMvA_11.25_15_Linux64.tgz
 	@ [ -f "$(TOOLS_DIR)/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz" ] || wget -P $(TOOLS_DIR) https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+	@ [ -f "$(TOOLS_DIR)/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz" ] || wget -P $(TOOLS_DIR) https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz
 	@ [ -d "$(TOOLS_DIR)/Base_RevC_AEMvA_pkg" ] || tar -C $(TOOLS_DIR) -zxvf $(TOOLS_DIR)/FVP_Base_RevC-2xAEMvA_11.25_15_Linux64.tgz
 	@ [ -d "$(TOOLS_DIR)/arm-gnu-toolchain-13.2.Rel1-x86_64-aarch64-none-linux-gnu" ] || tar -C $(TOOLS_DIR) -xvf $(TOOLS_DIR)/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+	@ [ -d "$(TOOLS_DIR)/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04" ] || tar -C $(TOOLS_DIR) -xvf $(TOOLS_DIR)/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz
 
 
 u-boot.build:
@@ -87,13 +93,18 @@ tf-a.clean:
 	make PLAT=fvp -C $(SRC_DIR)/tf-a  realclean
 
 linux.build: 
-	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig CROSS_COMPILE=$(CROSS_COMPILE)
-	make -C $(SRC_DIR)/linux ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILE) olddefconfig
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs modules
+	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig $(CC) CROSS_COMPILE=$(CROSS_COMPILE)
+	make -C $(SRC_DIR)/linux ARCH=arm64 $(CC) CROSS_COMPILE=$(CROSS_COMPILE) olddefconfig
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) $(CC) CROSS_COMPILE=$(CROSS_COMPILE) Image dtbs
 
 linux.mod:
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) modules
-	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) CROSS_COMPILE=$(CROSS_COMPILE) INSTALL_MOD_PATH=$(shell pwd)/rootfs/overlay  modules_install
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) $(CC) CROSS_COMPILE=$(CROSS_COMPILE) modules
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) $(CC) CROSS_COMPILE=$(CROSS_COMPILE) INSTALL_MOD_PATH=$(shell pwd)/rootfs/overlay  modules_install
+
+linux.menuconfig:
+	[ -f "$(SRC_DIR)/linux/.config" ] ||  make -C $(SRC_DIR)/linux ARCH=arm64 defconfig $(CC) CROSS_COMPILE=$(CROSS_COMPILE)
+	make -C $(SRC_DIR)/linux ARCH=arm64 $(CC) CROSS_COMPILE=$(CROSS_COMPILE) olddefconfig
+	make -C $(SRC_DIR)/linux ARCH=arm64 -j $(JOBS) $(CC) CROSS_COMPILE=$(CROSS_COMPILE) menuconfig
 
 linux.clean:
 	make -C $(SRC_DIR)/linux ARCH=arm64 clean 
